@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Self-healing logic to detect and fix orphaned `tool_use` blocks that are missing corresponding `tool_result` blocks
+- Automatic injection of synthetic error tool results when conversation state corruption is detected
+
+### Changed
+- Upgraded `@anthropic-ai/sdk` from 0.54.0 to 0.80.0
+- Upgraded `@anthropic-ai/vertex-sdk` from 0.11.4 to 0.14.4
+
+### Fixed
+- Fixed 400 errors from Vertex AI when tool_use blocks lack corresponding tool_result blocks
+- Improved streaming reliability and tool calling stability
+
 ## [0.1.3] - 2026-02-07
 
 ### Added
