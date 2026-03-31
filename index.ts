@@ -291,6 +291,56 @@ export function convertMessages(messages: Message[], model: Model<Api>): any[] {
 		}
 	}
 
+	// Self-healing: detect orphaned tool_use blocks and inject synthetic tool_results
+	for (let i = 0; i < params.length; i++) {
+		const msg = params[i];
+		if (msg.role === "assistant" && Array.isArray(msg.content)) {
+			const toolUseBlocks = msg.content.filter((b: any) => b.type === "tool_use");
+			if (toolUseBlocks.length > 0) {
+				// Check if next message has corresponding tool_results
+				const nextMsg = params[i + 1];
+				const toolUseIds = new Set(toolUseBlocks.map((b: any) => b.id));
+				const foundResultIds = new Set<string>();
+
+				if (nextMsg?.role === "user" && Array.isArray(nextMsg.content)) {
+					for (const block of nextMsg.content) {
+						if (block.type === "tool_result") {
+							foundResultIds.add(block.tool_use_id);
+						}
+					}
+				}
+
+				// Find orphaned tool_use blocks (no matching tool_result)
+				const orphanedIds = [...toolUseIds].filter((id) => !foundResultIds.has(id));
+
+				if (orphanedIds.length > 0) {
+					console.warn(
+						`[pi-vertex-claude] Self-healing: Found ${orphanedIds.length} orphaned tool_use blocks. Injecting synthetic error results.`,
+					);
+
+					// Inject synthetic error tool_results
+					const syntheticResults = orphanedIds.map((id) => ({
+						type: "tool_result",
+						tool_use_id: id,
+						content: "Error: Tool result was lost during conversation state recovery.",
+						is_error: true,
+					}));
+
+					if (nextMsg?.role === "user" && Array.isArray(nextMsg.content)) {
+						// Prepend to existing user message
+						nextMsg.content = [...syntheticResults, ...nextMsg.content];
+					} else {
+						// Insert new user message with synthetic results
+						params.splice(i + 1, 0, {
+							role: "user",
+							content: syntheticResults,
+						});
+					}
+				}
+			}
+		}
+	}
+
 	// Add cache control to last user message
 	if (params.length > 0) {
 		const last = params[params.length - 1];
